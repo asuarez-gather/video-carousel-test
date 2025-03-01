@@ -9,10 +9,6 @@ const MIN_VIDEO_HEIGHT = 90;
 interface ControlPanelProps {
   numParticipants: number;
   setNumParticipants: (value: number) => void;
-  maxWidth: number;
-  setMaxWidth: (value: number) => void;
-  maxHeight: number;
-  setMaxHeight: (value: number) => void;
 }
 
 interface VideoDimensions {
@@ -41,10 +37,6 @@ function App() {
       <ControlPanel
         numParticipants={numParticipants}
         setNumParticipants={setNumParticipants}
-        maxWidth={maxWidth}
-        setMaxWidth={setMaxWidth}
-        maxHeight={maxHeight}
-        setMaxHeight={setMaxHeight}
       />
 
       <BrowserResizableVideoGrid
@@ -65,10 +57,6 @@ function App() {
 const ControlPanel: React.FC<ControlPanelProps> = ({
   numParticipants,
   setNumParticipants,
-  maxWidth,
-  setMaxWidth,
-  maxHeight,
-  setMaxHeight,
 }) => {
   return (
     <div className="control-panel">
