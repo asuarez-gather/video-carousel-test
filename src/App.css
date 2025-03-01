@@ -1,4 +1,3 @@
-
 .app-container {
   display: flex;
   flex-direction: column;
@@ -12,8 +11,8 @@
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   position: absolute;
-  top:0;
-  left:0;
+  top: 4px;
+  left: 4px;
 }
 
 .control-row {
@@ -42,17 +41,41 @@
   display: flex;
   justify-content: center;
   margin-top: 20px;
+  position: relative;
 }
 
 .video-grid {
   border: 1px solid #ccc;
   overflow: hidden;
+  border-radius: 6px;
+  /* Add a subtle shadow to look more like a window */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.video-grid.resizing {
+  border-color: #2684ff;
+  box-shadow: 0 0 0 1px #2684ff, 0 2px 8px rgba(38, 132, 255, 0.2);
 }
 
 .video-tile {
   flex-shrink: 0;
   position: relative;
 }
-`;
 
-export default App;
+/* Resize handle - just the corner one */
+.resize-handle.resize-corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(38, 132, 255, 0.3) 50%);
+  border-radius: 0 0 6px 0;
+  z-index: 10;
+}
+
+.resize-handle.resize-corner:hover, 
+.resize-handle.resize-corner:active {
+  background: linear-gradient(135deg, transparent 50%, rgba(38, 132, 255, 0.5) 50%);
+}
