@@ -1,0 +1,58 @@
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.control-panel {
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: absolute;
+  top:0;
+  left:0;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.control-row label {
+  flex: 0 0 120px;
+  font-weight: 500;
+}
+
+.control-row input {
+  flex: 1;
+  margin: 0 15px;
+}
+
+.control-row span {
+  flex: 0 0 70px;
+  text-align: right;
+  color: #666;
+}
+
+.video-grid-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.video-grid {
+  border: 1px solid #ccc;
+  overflow: hidden;
+}
+
+.video-tile {
+  flex-shrink: 0;
+  position: relative;
+}
+`;
+
+export default App;
