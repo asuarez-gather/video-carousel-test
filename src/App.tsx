@@ -4,13 +4,14 @@ import "./App.css";
 // Constants
 const MIN_VIDEO_WIDTH = 160;
 const MIN_VIDEO_HEIGHT = 90;
+const ASPECT_RATIO = 16 / 9;
+const MAX_VIDEOS = 9; // 3x3 grid maximum
 
 // Define interfaces for component props and state
 interface ControlPanelProps {
   numParticipants: number;
   setNumParticipants: (value: number) => void;
-  maxVideosDisplayed: number;
-  windowDimensions: {
+  containerSize: {
     width: number;
     height: number;
   };
@@ -18,31 +19,31 @@ interface ControlPanelProps {
     width: number;
     height: number;
   };
+  gridInfo: {
+    rows: number;
+    cols: number;
+  };
 }
 
-interface VideoDimensions {
-  videoWidth: number;
-  videoHeight: number;
-  windowWidth: number;
-  windowHeight: number;
-}
-
-interface ResizableVideoGridProps {
+interface VideoGridProps {
   numParticipants: number;
-  maxWidth: number;
-  maxHeight: number;
+  containerWidth: number;
+  containerHeight: number;
   gap?: number;
-  videosToShow: number;
   onResize: (width: number, height: number) => void;
-  onDimensionsChange: (dimensions: VideoDimensions) => void;
+  onLayoutChange: (layout: {
+    containerSize: { width: number; height: number };
+    videoDimensions: { width: number; height: number };
+    gridInfo: { rows: number; cols: number };
+  }) => void;
+  videoDimensions: { width: number; height: number };
 }
 
 function App() {
-  const [numParticipants, setNumParticipants] = useState<number>(8);
-  const [maxWidth, setMaxWidth] = useState<number>(1200);
-  const [maxHeight, setMaxHeight] = useState<number>(300);
-  const [videosToShow, setVideosToShow] = useState<number>(0);
-  const [windowDimensions, setWindowDimensions] = useState<{
+  const [numParticipants, setNumParticipants] = useState<number>(5);
+  const [containerWidth, setContainerWidth] = useState<number>(800);
+  const [containerHeight, setContainerHeight] = useState<number>(600);
+  const [containerSize, setContainerSize] = useState<{
     width: number;
     height: number;
   }>({
@@ -56,54 +57,58 @@ function App() {
     width: 0,
     height: 0,
   });
-  const gap = 8;
+  const [gridInfo, setGridInfo] = useState<{
+    rows: number;
+    cols: number;
+  }>({
+    rows: 0,
+    cols: 0,
+  });
 
-  // Calculate videosToShow based on available space and participants
-  useEffect(() => {
-    // Calculate how many videos can fit
-    const maxVideosToShow = Math.floor(
-      (maxWidth + gap) / (MIN_VIDEO_WIDTH + gap),
-    );
-    // Limit to the number of participants and a maximum of 8
-    const calculatedVideosToShow = Math.min(
-      numParticipants,
-      maxVideosToShow,
-      8,
-    );
-
-    setVideosToShow(calculatedVideosToShow);
-  }, [maxWidth, gap, numParticipants]);
+  // Simulate window resize for demonstration purposes
+  const toggleWindowShape = () => {
+    if (containerWidth > containerHeight) {
+      // Switch to vertical layout
+      setContainerWidth(400);
+      setContainerHeight(800);
+    } else {
+      // Switch to horizontal layout
+      setContainerWidth(800);
+      setContainerHeight(400);
+    }
+  };
 
   return (
     <div className="app-container">
       <ControlPanel
         numParticipants={numParticipants}
         setNumParticipants={setNumParticipants}
-        maxVideosDisplayed={videosToShow}
-        windowDimensions={windowDimensions}
+        containerSize={containerSize}
         videoDimensions={videoDimensions}
+        gridInfo={gridInfo}
       />
 
-      <BrowserResizableVideoGrid
-        maxWidth={maxWidth}
-        maxHeight={maxHeight}
+      <div className="demo-controls" style={{ marginBottom: "10px" }}>
+        <button onClick={toggleWindowShape}>
+          Toggle Window Shape (Currently:{" "}
+          {containerWidth > containerHeight ? "Landscape" : "Portrait"})
+        </button>
+      </div>
+
+      <ResizableVideoGrid
         numParticipants={numParticipants}
-        videosToShow={videosToShow}
+        containerWidth={containerWidth}
+        containerHeight={containerHeight}
         onResize={(newWidth: number, newHeight: number) => {
-          console.log("newWidth", newWidth);
-          setMaxWidth(newWidth);
-          setMaxHeight(newHeight);
+          setContainerWidth(newWidth);
+          setContainerHeight(newHeight);
         }}
-        onDimensionsChange={(dimensions) => {
-          setWindowDimensions({
-            width: dimensions.windowWidth,
-            height: dimensions.windowHeight,
-          });
-          setVideoDimensions({
-            width: dimensions.videoWidth,
-            height: dimensions.videoHeight,
-          });
+        onLayoutChange={(layout) => {
+          setContainerSize(layout.containerSize);
+          setVideoDimensions(layout.videoDimensions);
+          setGridInfo(layout.gridInfo);
         }}
+        videoDimensions={videoDimensions}
       />
     </div>
   );
@@ -113,9 +118,9 @@ function App() {
 const ControlPanel: React.FC<ControlPanelProps> = ({
   numParticipants,
   setNumParticipants,
-  maxVideosDisplayed,
-  windowDimensions,
+  containerSize,
   videoDimensions,
+  gridInfo,
 }) => {
   return (
     <div className="control-panel">
@@ -126,30 +131,37 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <input
           id="participants"
           type="number"
-          min="0"
-          max="20"
+          min="1"
+          max={MAX_VIDEOS}
           value={numParticipants}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setNumParticipants(parseInt(e.target.value) || 0)
+            setNumParticipants(
+              Math.min(MAX_VIDEOS, parseInt(e.target.value) || 1),
+            )
           }
         />
         <span>{numParticipants}</span>
       </div>
 
-      <div className="control-row">
-        <label>Maximum videos displayed:</label>
-        <span>{maxVideosDisplayed}</span>
+      <div className="control-section">
+        <h4>Grid Layout</h4>
+        <div className="control-row">
+          <label>Grid:</label>
+          <span>
+            {gridInfo.rows} × {gridInfo.cols}
+          </span>
+        </div>
       </div>
 
       <div className="control-section">
-        <h4>Grid Dimensions</h4>
+        <h4>Container Dimensions</h4>
         <div className="control-row">
-          <label>Window width:</label>
-          <span>{Math.round(windowDimensions.width)}px</span>
+          <label>Width:</label>
+          <span>{Math.round(containerSize.width)}px</span>
         </div>
         <div className="control-row">
-          <label>Window height:</label>
-          <span>{Math.round(windowDimensions.height)}px</span>
+          <label>Height:</label>
+          <span>{Math.round(containerSize.height)}px</span>
         </div>
       </div>
 
@@ -176,13 +188,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   );
 };
 
-const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
-  maxWidth = 1200,
-  maxHeight = 300,
+const ResizableVideoGrid: React.FC<VideoGridProps> = ({
+  numParticipants,
+  containerWidth = 800,
+  containerHeight = 600,
   gap = 8,
-  videosToShow,
   onResize,
-  onDimensionsChange,
+  onLayoutChange,
+  videoDimensions,
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState<boolean>(false);
@@ -193,48 +206,114 @@ const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
   const [startSize, setStartSize] = useState<{ width: number; height: number }>(
     { width: 0, height: 0 },
   );
-  const [dimensions, setDimensions] = useState<VideoDimensions>({
-    videoWidth: 0,
-    videoHeight: 0,
-    windowWidth: 0,
-    windowHeight: 0,
-  });
 
-  // Calculate video dimensions when inputs change
+  // Calculate the optimal grid layout based on container dimensions and participant count
+  const calculateOptimalGridLayout = (
+    participants: number,
+    containerWidth: number,
+    containerHeight: number,
+    gap: number,
+  ) => {
+    if (participants <= 0) return { rows: 0, cols: 0 };
+    if (participants === 1) return { rows: 1, cols: 1 };
+
+    // Maximum 9 videos (3x3)
+    const maxVideos = Math.min(participants, MAX_VIDEOS);
+
+    // Try all possible grid configurations and find the one that gives the largest video size
+    let bestLayout = { rows: 1, cols: maxVideos };
+    let bestVideoSize = 0;
+
+    // Test different row/column combinations
+    for (let rows = 1; rows <= maxVideos; rows++) {
+      // Calculate needed columns (ceiling to ensure all participants fit)
+      const cols = Math.ceil(maxVideos / rows);
+
+      // Skip if we need more than MAX_VIDEOS
+      if (rows * cols > MAX_VIDEOS) continue;
+
+      // Calculate available space accounting for gaps
+      const availableWidth = containerWidth - (cols - 1) * gap;
+      const availableHeight = containerHeight - (rows - 1) * gap;
+
+      // Calculate potential video dimensions
+      let videoWidth = availableWidth / cols;
+      let videoHeight = videoWidth / ASPECT_RATIO;
+
+      // If too tall, constrain by height
+      if (videoHeight * rows > availableHeight) {
+        videoHeight = availableHeight / rows;
+        videoWidth = videoHeight * ASPECT_RATIO;
+      }
+
+      // Calculate the video area
+      const videoSize = videoWidth * videoHeight;
+
+      // Update best layout if this one is better
+      if (videoSize > bestVideoSize) {
+        bestVideoSize = videoSize;
+        bestLayout = { rows, cols };
+      }
+    }
+
+    return bestLayout;
+  };
+
+  // Calculate video dimensions based on container size and optimize grid layout
   useEffect(() => {
-    if (videosToShow === 0) {
-      const newDimensions = {
-        videoWidth: 0,
-        videoHeight: 0,
-        windowWidth: 0,
-        windowHeight: 0,
-      };
-      setDimensions(newDimensions);
-      onDimensionsChange(newDimensions);
+    if (numParticipants <= 0) {
+      onLayoutChange({
+        containerSize: { width: containerWidth, height: containerHeight },
+        videoDimensions: { width: 0, height: 0 },
+        gridInfo: { rows: 0, cols: 0 },
+      });
       return;
     }
 
-    // Calculate dimensions
-    const availableWidth = maxWidth - gap * (videosToShow - 1);
-    const videoWidth = Math.max(MIN_VIDEO_WIDTH, availableWidth / videosToShow);
-    const heightFromWidth = videoWidth * (9 / 16);
-    const videoHeight = Math.min(heightFromWidth, maxHeight);
-    const finalVideoWidth = videoHeight * (16 / 9);
+    // Calculate the optimal grid layout based on container dimensions
+    const gridLayout = calculateOptimalGridLayout(
+      numParticipants,
+      containerWidth - 2 * 8, // Account for padding
+      containerHeight - 2 * 8, // Account for padding
+      gap,
+    );
 
-    // Calculate window dimensions
-    const windowWidth =
-      finalVideoWidth * videosToShow + gap * (videosToShow - 1);
+    const { rows, cols } = gridLayout;
 
-    const newDimensions = {
-      videoWidth: finalVideoWidth,
-      videoHeight,
-      windowWidth,
-      windowHeight: videoHeight,
-    };
+    // Calculate available space for videos
+    const totalGapWidth = gap * (cols - 1);
+    const totalGapHeight = gap * (rows - 1);
 
-    setDimensions(newDimensions);
-    onDimensionsChange(newDimensions);
-  }, [maxWidth, maxHeight, gap, videosToShow, onDimensionsChange]);
+    const availableWidth = containerWidth - totalGapWidth - 2 * 8; // Account for padding
+    const availableHeight = containerHeight - totalGapHeight - 2 * 8; // Account for padding
+
+    // Calculate video dimensions while strictly maintaining aspect ratio
+    let videoWidth = availableWidth / cols;
+    let videoHeight = videoWidth / ASPECT_RATIO;
+
+    // If videos are too tall, constrain by height
+    if (videoHeight * rows > availableHeight) {
+      videoHeight = availableHeight / rows;
+      videoWidth = videoHeight * ASPECT_RATIO;
+    }
+
+    // Ensure minimum dimensions
+    videoWidth = Math.max(MIN_VIDEO_WIDTH, videoWidth);
+    videoHeight = Math.max(MIN_VIDEO_HEIGHT, videoHeight);
+
+    // Update layout
+    onLayoutChange({
+      containerSize: {
+        width: containerWidth,
+        height: containerHeight,
+      },
+      videoDimensions: {
+        width: videoWidth,
+        height: videoHeight,
+      },
+      gridInfo: gridLayout,
+    });
+  }, [numParticipants, containerWidth, containerHeight, gap, onLayoutChange]);
 
   // Handle mouse down on resize handle
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -251,8 +330,8 @@ const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
 
     // Store initial dimensions
     setStartSize({
-      width: maxWidth,
-      height: maxHeight,
+      width: containerWidth,
+      height: containerHeight,
     });
 
     // Add event listeners for mouse movement and mouse up
@@ -266,8 +345,6 @@ const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
 
   // Handle mouse movement while resizing
   const handleMouseMove = (e: MouseEvent) => {
-    console.log("handleMouseMove");
-
     // Calculate the delta movement from the start position
     const deltaX = e.clientX - startPos.x;
     const deltaY = e.clientY - startPos.y;
@@ -285,8 +362,6 @@ const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
     // Stop resizing
     setIsResizing(false);
 
-    console.log("handleMouseUp");
-
     // Remove event listeners
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
@@ -296,38 +371,108 @@ const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
     document.body.style.userSelect = "";
   };
 
+  // Update references to the grid layout function
+  const gridInfo: { cols: number; rows: number } = calculateOptimalGridLayout(
+    numParticipants,
+    containerWidth - 2 * 8, // Account for padding
+    containerHeight - 2 * 8, // Account for padding
+    gap,
+  );
+
   return (
     <div className="video-grid-container" ref={gridRef}>
       <div
         className={`video-grid ${isResizing ? "resizing" : ""}`}
         style={{
-          width: dimensions.windowWidth,
-          height: dimensions.windowHeight,
+          width: `${containerWidth}px`,
+          height: `${containerHeight}px`,
           display: "flex",
-          gap: `${gap}px`,
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
           transition: isResizing ? "none" : "width 0.3s ease, height 0.3s ease",
           position: "relative",
+          border: "1px solid #ccc",
+          borderRadius: "8px",
+          padding: "8px",
+          boxSizing: "border-box",
+          overflow: "hidden",
         }}
       >
-        {/* Video tiles */}
-        {Array.from({ length: videosToShow }).map((_, index) => (
-          <div
-            key={index}
-            className="video-tile"
-            style={{
-              width: dimensions.videoWidth,
-              height: dimensions.videoHeight,
-              backgroundColor: "#000",
-              borderRadius: "8px",
-            }}
-          />
-        ))}
+        {/* Grid wrapper with fixed aspect ratio videos */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${gridInfo.cols}, ${Math.round(videoDimensions.width)}px)`,
+            gridTemplateRows: `repeat(${gridInfo.rows}, ${Math.round(videoDimensions.height)}px)`,
+            gap: `${gap}px`,
+          }}
+        >
+          {/* Video tiles */}
+          {Array.from({ length: numParticipants }).map((_, index) => (
+            <div
+              key={index}
+              className="video-tile"
+              style={{
+                backgroundColor: "#000",
+                borderRadius: "8px",
+                position: "relative",
+                overflow: "hidden",
+                width: `${Math.round(videoDimensions.width)}px`,
+                height: `${Math.round(videoDimensions.height)}px`,
+              }}
+            >
+              {/* Participant label */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 4,
+                  right: 4,
+                  color: "white",
+                  fontSize: "12px",
+                  padding: "2px 6px",
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: "4px",
+                }}
+              >
+                P{index + 1}
+              </div>
 
-        {/* Single resize handle in the corner, like a browser window */}
+              {/* Size indicator (for debugging) */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  left: 4,
+                  color: "white",
+                  fontSize: "10px",
+                  padding: "1px 4px",
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: "4px",
+                }}
+              >
+                {Math.round(videoDimensions.width)}×
+                {Math.round(videoDimensions.height)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Resize handle */}
         <div
           className="resize-handle resize-corner"
           onMouseDown={handleMouseDown}
-          title="Drag to resize window"
+          title="Drag to resize grid"
+          style={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            width: 16,
+            height: 16,
+            cursor: "nwse-resize",
+            background: "transparent",
+            zIndex: 10,
+          }}
         />
       </div>
     </div>
