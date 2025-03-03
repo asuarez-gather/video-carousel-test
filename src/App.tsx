@@ -1,479 +1,458 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useMemo, MouseEventHandler } from "react";
 import "./App.css";
 
 // Constants
 const MIN_VIDEO_WIDTH = 160;
 const MIN_VIDEO_HEIGHT = 90;
 const ASPECT_RATIO = 16 / 9;
-const MAX_VIDEOS = 9; // 3x3 grid maximum
+const MAX_VIDEOS_PER_PAGE = 25;
 
-// Define interfaces for component props and state
-interface ControlPanelProps {
-  numParticipants: number;
-  setNumParticipants: (value: number) => void;
-  containerSize: {
-    width: number;
-    height: number;
-  };
-  videoDimensions: {
-    width: number;
-    height: number;
-  };
-  gridInfo: {
-    rows: number;
-    cols: number;
-  };
+// Simplified interfaces
+interface GridInfo {
+  rows: number;
+  cols: number;
+  visibleParticipants: number;
+  totalParticipants: number;
+  currentPage: number;
+  totalPages: number;
 }
 
-interface VideoGridProps {
-  numParticipants: number;
-  containerWidth: number;
-  containerHeight: number;
-  gap?: number;
-  onResize: (width: number, height: number) => void;
-  onLayoutChange: (layout: {
-    containerSize: { width: number; height: number };
-    videoDimensions: { width: number; height: number };
-    gridInfo: { rows: number; cols: number };
-  }) => void;
-  videoDimensions: { width: number; height: number };
+interface VideoDimensions {
+  width: number;
+  height: number;
 }
 
 function App() {
-  const [numParticipants, setNumParticipants] = useState<number>(5);
-  const [containerWidth, setContainerWidth] = useState<number>(800);
-  const [containerHeight, setContainerHeight] = useState<number>(600);
-  const [containerSize, setContainerSize] = useState<{
-    width: number;
-    height: number;
-  }>({
-    width: 0,
-    height: 0,
-  });
-  const [videoDimensions, setVideoDimensions] = useState<{
-    width: number;
-    height: number;
-  }>({
-    width: 0,
-    height: 0,
-  });
-  const [gridInfo, setGridInfo] = useState<{
-    rows: number;
-    cols: number;
-  }>({
-    rows: 0,
-    cols: 0,
-  });
-
-  // Simulate window resize for demonstration purposes
-  const toggleWindowShape = () => {
-    if (containerWidth > containerHeight) {
-      // Switch to vertical layout
-      setContainerWidth(400);
-      setContainerHeight(800);
-    } else {
-      // Switch to horizontal layout
-      setContainerWidth(800);
-      setContainerHeight(400);
-    }
-  };
+  // State management
+  const [numParticipants, setNumParticipants] = useState(9);
+  const [containerWidth, setContainerWidth] = useState(800);
+  const [containerHeight, setContainerHeight] = useState(600);
+  const [currentPage, setCurrentPage] = useState(1);
 
   return (
     <div className="app-container">
-      <ControlPanel
-        numParticipants={numParticipants}
-        setNumParticipants={setNumParticipants}
-        containerSize={containerSize}
-        videoDimensions={videoDimensions}
-        gridInfo={gridInfo}
-      />
-
-      <div className="demo-controls" style={{ marginBottom: "10px" }}>
-        <button onClick={toggleWindowShape}>
-          Toggle Window Shape (Currently:{" "}
-          {containerWidth > containerHeight ? "Landscape" : "Portrait"})
-        </button>
-      </div>
-
-      <ResizableVideoGrid
-        numParticipants={numParticipants}
+      <VideoGridWithControls
+        participants={numParticipants}
+        setParticipants={setNumParticipants}
         containerWidth={containerWidth}
         containerHeight={containerHeight}
-        onResize={(newWidth: number, newHeight: number) => {
-          setContainerWidth(newWidth);
-          setContainerHeight(newHeight);
+        initialPage={currentPage}
+        onPageChange={setCurrentPage}
+        onResize={(width, height) => {
+          setContainerWidth(width);
+          setContainerHeight(height);
         }}
-        onLayoutChange={(layout) => {
-          setContainerSize(layout.containerSize);
-          setVideoDimensions(layout.videoDimensions);
-          setGridInfo(layout.gridInfo);
-        }}
-        videoDimensions={videoDimensions}
       />
     </div>
   );
 }
 
-// Separate control panel component
-const ControlPanel: React.FC<ControlPanelProps> = ({
-  numParticipants,
-  setNumParticipants,
-  containerSize,
-  videoDimensions,
-  gridInfo,
-}) => {
-  return (
-    <div className="control-panel">
-      <h3>Video Grid Controls</h3>
-
-      <div className="control-row">
-        <label htmlFor="participants">Participants:</label>
-        <input
-          id="participants"
-          type="number"
-          min="1"
-          max={MAX_VIDEOS}
-          value={numParticipants}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setNumParticipants(
-              Math.min(MAX_VIDEOS, parseInt(e.target.value) || 1),
-            )
-          }
-        />
-        <span>{numParticipants}</span>
-      </div>
-
-      <div className="control-section">
-        <h4>Grid Layout</h4>
-        <div className="control-row">
-          <label>Grid:</label>
-          <span>
-            {gridInfo.rows} × {gridInfo.cols}
-          </span>
-        </div>
-      </div>
-
-      <div className="control-section">
-        <h4>Container Dimensions</h4>
-        <div className="control-row">
-          <label>Width:</label>
-          <span>{Math.round(containerSize.width)}px</span>
-        </div>
-        <div className="control-row">
-          <label>Height:</label>
-          <span>{Math.round(containerSize.height)}px</span>
-        </div>
-      </div>
-
-      <div className="control-section">
-        <h4>Video Dimensions</h4>
-        <div className="control-row">
-          <label>Video width:</label>
-          <span>{Math.round(videoDimensions.width)}px</span>
-        </div>
-        <div className="control-row">
-          <label>Video height:</label>
-          <span>{Math.round(videoDimensions.height)}px</span>
-        </div>
-        <div className="control-row">
-          <label>Aspect ratio:</label>
-          <span>
-            {videoDimensions.width > 0
-              ? (videoDimensions.width / videoDimensions.height).toFixed(2)
-              : "N/A"}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ResizableVideoGrid: React.FC<VideoGridProps> = ({
-  numParticipants,
-  containerWidth = 800,
-  containerHeight = 600,
-  gap = 8,
+// Combined component to avoid state syncing issues
+const VideoGridWithControls = ({
+  participants,
+  setParticipants,
+  containerWidth,
+  containerHeight,
+  initialPage,
+  onPageChange,
   onResize,
-  onLayoutChange,
-  videoDimensions,
+}: {
+  participants: number;
+  setParticipants: (participants: number) => void;
+  containerWidth: number;
+  containerHeight: number;
+  initialPage: number;
+  onPageChange: (page: number) => void;
+  onResize: (width: number, height: number) => void;
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
-  const [isResizing, setIsResizing] = useState<boolean>(false);
-  const [startPos, setStartPos] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
-  });
-  const [startSize, setStartSize] = useState<{ width: number; height: number }>(
-    { width: 0, height: 0 },
-  );
+  const [isResizing, setIsResizing] = useState(false);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [startSize, setStartSize] = useState({ width: 0, height: 0 });
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const gap = 8;
 
-  // Calculate the optimal grid layout based on container dimensions and participant count
-  const calculateOptimalGridLayout = (
+  // Calculate the optimal grid layout
+  const calculateGrid = (
     participants: number,
     containerWidth: number,
     containerHeight: number,
     gap: number,
   ) => {
-    if (participants <= 0) return { rows: 0, cols: 0 };
-    if (participants === 1) return { rows: 1, cols: 1 };
+    if (participants <= 0) {
+      return { rows: 0, cols: 0, videoWidth: 0, videoHeight: 0 };
+    }
 
-    // Maximum 9 videos (3x3)
-    const maxVideos = Math.min(participants, MAX_VIDEOS);
+    // Adjust for padding
+    const effectiveWidth = containerWidth - 16;
+    const effectiveHeight = containerHeight - 16;
 
-    // Try all possible grid configurations and find the one that gives the largest video size
-    let bestLayout = { rows: 1, cols: maxVideos };
-    let bestVideoSize = 0;
-
-    // Test different row/column combinations
-    for (let rows = 1; rows <= maxVideos; rows++) {
-      // Calculate needed columns (ceiling to ensure all participants fit)
-      const cols = Math.ceil(maxVideos / rows);
-
-      // Skip if we need more than MAX_VIDEOS
-      if (rows * cols > MAX_VIDEOS) continue;
-
-      // Calculate available space accounting for gaps
-      const availableWidth = containerWidth - (cols - 1) * gap;
-      const availableHeight = containerHeight - (rows - 1) * gap;
-
-      // Calculate potential video dimensions
-      let videoWidth = availableWidth / cols;
+    // Single participant case
+    if (participants === 1) {
+      let videoWidth = effectiveWidth;
       let videoHeight = videoWidth / ASPECT_RATIO;
 
-      // If too tall, constrain by height
-      if (videoHeight * rows > availableHeight) {
-        videoHeight = availableHeight / rows;
+      if (videoHeight > effectiveHeight) {
+        videoHeight = effectiveHeight;
         videoWidth = videoHeight * ASPECT_RATIO;
       }
 
-      // Calculate the video area
-      const videoSize = videoWidth * videoHeight;
+      return { rows: 1, cols: 1, videoWidth, videoHeight };
+    }
 
-      // Update best layout if this one is better
-      if (videoSize > bestVideoSize) {
-        bestVideoSize = videoSize;
-        bestLayout = { rows, cols };
+    // Find best layout
+    let maxArea = 0;
+    let bestLayout = {
+      rows: 1,
+      cols: 1,
+      videoWidth: MIN_VIDEO_WIDTH,
+      videoHeight: MIN_VIDEO_HEIGHT,
+    };
+
+    // Try different row configurations
+    for (let rows = 1; rows <= participants; rows++) {
+      const cols = Math.ceil(participants / rows);
+
+      const availableWidth = effectiveWidth - (cols - 1) * gap;
+      const availableHeight = effectiveHeight - (rows - 1) * gap;
+
+      let videoWidth = availableWidth / cols;
+      let videoHeight = availableHeight / rows;
+
+      // Maintain aspect ratio
+      if (videoWidth / videoHeight > ASPECT_RATIO) {
+        videoWidth = videoHeight * ASPECT_RATIO;
+      } else {
+        videoHeight = videoWidth / ASPECT_RATIO;
+      }
+
+      // Check if size meets minimum requirements
+      if (videoWidth >= MIN_VIDEO_WIDTH && videoHeight >= MIN_VIDEO_HEIGHT) {
+        const area = videoWidth * videoHeight;
+        if (area > maxArea) {
+          maxArea = area;
+          bestLayout = { rows, cols, videoWidth, videoHeight };
+        }
       }
     }
 
     return bestLayout;
   };
 
-  // Calculate video dimensions based on container size and optimize grid layout
-  useEffect(() => {
-    if (numParticipants <= 0) {
-      onLayoutChange({
-        containerSize: { width: containerWidth, height: containerHeight },
-        videoDimensions: { width: 0, height: 0 },
-        gridInfo: { rows: 0, cols: 0 },
-      });
-      return;
+  // Calculate layout for current page
+  const layout = useMemo(() => {
+    const participantsPerPage = Math.min(participants, MAX_VIDEOS_PER_PAGE);
+    const totalPages = Math.ceil(participants / MAX_VIDEOS_PER_PAGE);
+
+    // Ensure current page is valid
+    const validPage = Math.min(
+      Math.max(1, currentPage),
+      Math.max(1, totalPages),
+    );
+    if (validPage !== currentPage) {
+      setCurrentPage(validPage);
+      onPageChange(validPage);
     }
 
-    // Calculate the optimal grid layout based on container dimensions
-    const gridLayout = calculateOptimalGridLayout(
-      numParticipants,
-      containerWidth - 2 * 8, // Account for padding
-      containerHeight - 2 * 8, // Account for padding
+    // Calculate participants on current page
+    const startIndex = (validPage - 1) * MAX_VIDEOS_PER_PAGE;
+    const participantsOnPage = Math.min(
+      participantsPerPage,
+      participants - startIndex,
+    );
+
+    // Get grid dimensions
+    const { rows, cols, videoWidth, videoHeight } = calculateGrid(
+      participantsOnPage,
+      containerWidth,
+      containerHeight,
       gap,
     );
 
-    const { rows, cols } = gridLayout;
+    return {
+      rows,
+      cols,
+      videoWidth,
+      videoHeight,
+      visibleParticipants: participantsOnPage,
+      totalParticipants: participants,
+      currentPage: validPage,
+      totalPages,
+      startIndex,
+    };
+  }, [
+    participants,
+    containerWidth,
+    containerHeight,
+    currentPage,
+    onPageChange,
+  ]);
 
-    // Calculate available space for videos
-    const totalGapWidth = gap * (cols - 1);
-    const totalGapHeight = gap * (rows - 1);
-
-    const availableWidth = containerWidth - totalGapWidth - 2 * 8; // Account for padding
-    const availableHeight = containerHeight - totalGapHeight - 2 * 8; // Account for padding
-
-    // Calculate video dimensions while strictly maintaining aspect ratio
-    let videoWidth = availableWidth / cols;
-    let videoHeight = videoWidth / ASPECT_RATIO;
-
-    // If videos are too tall, constrain by height
-    if (videoHeight * rows > availableHeight) {
-      videoHeight = availableHeight / rows;
-      videoWidth = videoHeight * ASPECT_RATIO;
-    }
-
-    // Ensure minimum dimensions
-    videoWidth = Math.max(MIN_VIDEO_WIDTH, videoWidth);
-    videoHeight = Math.max(MIN_VIDEO_HEIGHT, videoHeight);
-
-    // Update layout
-    onLayoutChange({
-      containerSize: {
-        width: containerWidth,
-        height: containerHeight,
-      },
-      videoDimensions: {
-        width: videoWidth,
-        height: videoHeight,
-      },
-      gridInfo: gridLayout,
-    });
-  }, [numParticipants, containerWidth, containerHeight, gap, onLayoutChange]);
-
-  // Handle mouse down on resize handle
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-
-    // Start resizing
-    setIsResizing(true);
-
-    // Store initial mouse position
-    setStartPos({
-      x: e.clientX,
-      y: e.clientY,
-    });
-
-    // Store initial dimensions
-    setStartSize({
-      width: containerWidth,
-      height: containerHeight,
-    });
-
-    // Add event listeners for mouse movement and mouse up
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-
-    // Set cursor and prevent text selection
-    document.body.style.cursor = "nwse-resize";
-    document.body.style.userSelect = "none";
+  // Handle page changes
+  const handlePageChange = (page: number) => {
+    const newPage = Math.min(Math.max(1, page), layout.totalPages);
+    setCurrentPage(newPage);
+    onPageChange(newPage);
   };
 
-  // Handle mouse movement while resizing
+  // Resize handlers
+  const handleMouseDown: MouseEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+    setStartPos({ x: e.clientX, y: e.clientY });
+    setStartSize({ width: containerWidth, height: containerHeight });
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.cursor = "nwse-resize";
+  };
+
   const handleMouseMove = (e: MouseEvent) => {
-    // Calculate the delta movement from the start position
     const deltaX = e.clientX - startPos.x;
     const deltaY = e.clientY - startPos.y;
 
-    // Calculate new dimensions
-    const newWidth = Math.max(MIN_VIDEO_WIDTH, startSize.width + deltaX);
-    const newHeight = Math.max(MIN_VIDEO_HEIGHT, startSize.height + deltaY);
+    const newWidth = Math.max(MIN_VIDEO_WIDTH + 16, startSize.width + deltaX);
+    const newHeight = Math.max(
+      MIN_VIDEO_HEIGHT + 16,
+      startSize.height + deltaY,
+    );
 
-    // Update the dimensions
     onResize(newWidth, newHeight);
   };
 
-  // Handle mouse up to end resizing
   const handleMouseUp = () => {
-    // Stop resizing
     setIsResizing(false);
-
-    // Remove event listeners
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
-
-    // Reset cursor and text selection
     document.body.style.cursor = "";
-    document.body.style.userSelect = "";
   };
 
-  // Update references to the grid layout function
-  const gridInfo: { cols: number; rows: number } = calculateOptimalGridLayout(
-    numParticipants,
-    containerWidth - 2 * 8, // Account for padding
-    containerHeight - 2 * 8, // Account for padding
-    gap,
-  );
-
   return (
-    <div className="video-grid-container" ref={gridRef}>
-      <div
-        className={`video-grid ${isResizing ? "resizing" : ""}`}
-        style={{
-          width: `${containerWidth}px`,
-          height: `${containerHeight}px`,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          transition: isResizing ? "none" : "width 0.3s ease, height 0.3s ease",
-          position: "relative",
-          border: "1px solid #ccc",
-          borderRadius: "8px",
-          padding: "8px",
-          boxSizing: "border-box",
-          overflow: "hidden",
-        }}
-      >
-        {/* Grid wrapper with fixed aspect ratio videos */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${gridInfo.cols}, ${Math.round(videoDimensions.width)}px)`,
-            gridTemplateRows: `repeat(${gridInfo.rows}, ${Math.round(videoDimensions.height)}px)`,
-            gap: `${gap}px`,
-          }}
-        >
-          {/* Video tiles */}
-          {Array.from({ length: numParticipants }).map((_, index) => (
-            <div
-              key={index}
-              className="video-tile"
-              style={{
-                backgroundColor: "#000",
-                borderRadius: "8px",
-                position: "relative",
-                overflow: "hidden",
-                width: `${Math.round(videoDimensions.width)}px`,
-                height: `${Math.round(videoDimensions.height)}px`,
-              }}
-            >
-              {/* Participant label */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 4,
-                  right: 4,
-                  color: "white",
-                  fontSize: "12px",
-                  padding: "2px 6px",
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  borderRadius: "4px",
-                }}
-              >
-                P{index + 1}
-              </div>
+    <div className="video-grid-with-controls">
+      {/* Control Panel */}
+      <div className="control-panel">
+        <h3>Video Grid Controls</h3>
 
-              {/* Size indicator (for debugging) */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: 4,
-                  left: 4,
-                  color: "white",
-                  fontSize: "10px",
-                  padding: "1px 4px",
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  borderRadius: "4px",
-                }}
-              >
-                {Math.round(videoDimensions.width)}×
-                {Math.round(videoDimensions.height)}
-              </div>
-            </div>
-          ))}
+        <div className="control-row">
+          <label htmlFor="participants">Participants:</label>
+          <input
+            id="participants"
+            type="number"
+            min="1"
+            max="100"
+            value={participants}
+            onChange={(e) =>
+              setParticipants(Math.max(1, parseInt(e.target.value) || 1))
+            }
+          />
         </div>
 
-        {/* Resize handle */}
+        <div className="control-section">
+          <h4>Grid Layout</h4>
+          <div>
+            Grid: {layout.rows} × {layout.cols}
+          </div>
+          <div>
+            Visible/Total: {layout.visibleParticipants} /{" "}
+            {layout.totalParticipants}
+          </div>
+
+          {layout.totalPages > 1 && (
+            <div className="pagination-controls">
+              <span>
+                Page: {layout.currentPage} / {layout.totalPages}
+              </span>
+              <button
+                disabled={layout.currentPage === 1}
+                onClick={() => handlePageChange(layout.currentPage - 1)}
+              >
+                ←
+              </button>
+              <button
+                disabled={layout.currentPage === layout.totalPages}
+                onClick={() => handlePageChange(layout.currentPage + 1)}
+              >
+                →
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="control-section">
+          <h4>
+            Container: {Math.round(containerWidth)}×
+            {Math.round(containerHeight)}
+            px
+          </h4>
+          <h4>
+            Video: {Math.round(layout.videoWidth)}×
+            {Math.round(layout.videoHeight)}px
+          </h4>
+        </div>
+      </div>
+
+      {/* Video Grid */}
+      <div className="video-grid-container" ref={gridRef}>
         <div
-          className="resize-handle resize-corner"
-          onMouseDown={handleMouseDown}
-          title="Drag to resize grid"
+          className={`video-grid ${isResizing ? "resizing" : ""}`}
           style={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            width: 16,
-            height: 16,
-            cursor: "nwse-resize",
-            background: "transparent",
-            zIndex: 10,
+            width: `${containerWidth}px`,
+            height: `${containerHeight}px`,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            transition: isResizing
+              ? "none"
+              : "width 0.3s ease, height 0.3s ease",
+            position: "relative",
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+            padding: "8px",
+            boxSizing: "border-box",
           }}
-        />
+        >
+          {/* Grid of videos */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${layout.cols}, ${Math.round(layout.videoWidth)}px)`,
+              gridTemplateRows: `repeat(${layout.rows}, ${Math.round(layout.videoHeight)}px)`,
+              gap: `${gap}px`,
+            }}
+          >
+            {/* Video tiles */}
+            {Array.from({ length: layout.visibleParticipants }).map(
+              (_, index) => {
+                const participantIndex = layout.startIndex + index;
+                return (
+                  <div
+                    key={participantIndex}
+                    className="video-tile"
+                    style={{
+                      backgroundColor: "#000",
+                      borderRadius: "8px",
+                      position: "relative",
+                      width: `${Math.round(layout.videoWidth)}px`,
+                      height: `${Math.round(layout.videoHeight)}px`,
+                    }}
+                  >
+                    {/* Participant label */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 4,
+                        right: 4,
+                        color: "white",
+                        fontSize: "12px",
+                        padding: "2px 6px",
+                        backgroundColor: "rgba(0,0,0,0.5)",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      P{participantIndex + 1}
+                    </div>
+
+                    {/* Active speaker indicator */}
+                    {participantIndex === 0 && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 4,
+                          right: 4,
+                          color: "white",
+                          fontSize: "10px",
+                          padding: "1px 4px",
+                          backgroundColor: "rgba(76,175,80,0.8)",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        Speaking
+                      </div>
+                    )}
+                  </div>
+                );
+              },
+            )}
+          </div>
+
+          {/* Pagination */}
+          {layout.totalPages > 1 && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: 12,
+                left: 0,
+                right: 0,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <button
+                onClick={() => handlePageChange(layout.currentPage - 1)}
+                disabled={layout.currentPage === 1}
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.7)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  cursor: layout.currentPage === 1 ? "not-allowed" : "pointer",
+                  opacity: layout.currentPage === 1 ? 0.5 : 1,
+                }}
+              >
+                ←
+              </button>
+              <span
+                style={{
+                  color: "white",
+                  backgroundColor: "rgba(0,0,0,0.7)",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                }}
+              >
+                {layout.currentPage} / {layout.totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(layout.currentPage + 1)}
+                disabled={layout.currentPage === layout.totalPages}
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.7)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  cursor:
+                    layout.currentPage === layout.totalPages
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity: layout.currentPage === layout.totalPages ? 0.5 : 1,
+                }}
+              >
+                →
+              </button>
+            </div>
+          )}
+
+          {/* Resize handle */}
+          <div
+            className="resize-handle"
+            onMouseDown={handleMouseDown}
+            title="Resize"
+            style={{
+              position: "absolute",
+              right: 0,
+              bottom: 0,
+              width: 16,
+              height: 16,
+              cursor: "nwse-resize",
+              background: "transparent",
+              zIndex: 10,
+            }}
+          />
+        </div>
       </div>
     </div>
   );
