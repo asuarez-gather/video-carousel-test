@@ -27,6 +27,7 @@ interface ControlPanelProps {
   videosToShow: number;
   windowDimensions: Dimensions;
   videoDimensions: Dimensions;
+  lastSavedMaxWidth: number;
 }
 
 interface VideoGridProps {
@@ -38,9 +39,11 @@ interface VideoGridProps {
 }
 
 function App() {
+  const initialMaxWidth = 1200;
   const [numParticipants, setNumParticipants] = useState(8);
-  const [maxWidth, setMaxWidth] = useState(1200);
+  const [maxWidth, setMaxWidth] = useState(initialMaxWidth);
   const [maxHeight, setMaxHeight] = useState(300);
+  const [lastSavedMaxWidth, setLastSavedMaxWidth] = useState(initialMaxWidth);
   const [videosToShow, setVideosToShow] = useState(0);
   const [windowDimensions, setWindowDimensions] = useState<Dimensions>({
     width: maxWidth,
@@ -50,19 +53,55 @@ function App() {
     width: 0,
     height: 0,
   });
+  const [prevNumParticipants, setPrevNumParticipants] =
+    useState(numParticipants);
 
   // Calculate videosToShow based on available space and participants
   useEffect(() => {
     const maxVideosDisplayed = Math.floor(
       (maxWidth + GAP) / (MIN_VIDEO_WIDTH + GAP),
     );
-    setVideosToShow(Math.min(numParticipants, maxVideosDisplayed, MAX_VIDEOS));
+    const newVideosToShow = Math.min(
+      numParticipants,
+      maxVideosDisplayed,
+      MAX_VIDEOS,
+    );
+    setVideosToShow(newVideosToShow);
 
     setWindowDimensions({
       width: maxWidth,
       height: maxHeight,
     });
   }, [maxWidth, maxHeight, numParticipants]);
+
+  // Auto-adjust window size when number of participants changes
+  useEffect(() => {
+    // Check if participants decreased
+    if (numParticipants < prevNumParticipants && numParticipants > 0) {
+      // Calculate optimal width for the current number of videos
+      const optimalVideoWidth = 320; // Desired video width
+      const optimalWindowWidth =
+        numParticipants * optimalVideoWidth + (numParticipants - 1) * GAP;
+
+      // Shrink the window
+      if (optimalWindowWidth < maxWidth) {
+        setMaxWidth(optimalWindowWidth);
+      }
+    }
+    // Check if participants increased
+    else if (numParticipants > prevNumParticipants) {
+      // Calculate optimal width for the current number of participants
+      const optimalVideoWidth = 320; // Desired video width
+      const optimalWindowWidth =
+        numParticipants * optimalVideoWidth + (numParticipants - 1) * GAP;
+
+      // Expand window but don't exceed lastSavedMaxWidth
+      const newWidth = Math.min(optimalWindowWidth, lastSavedMaxWidth);
+      setMaxWidth(newWidth);
+    }
+
+    setPrevNumParticipants(numParticipants);
+  }, [numParticipants, prevNumParticipants, maxWidth, lastSavedMaxWidth]);
 
   const handleDimensionsChange = useCallback((dimensions: GridDimensions) => {
     setWindowDimensions({
@@ -75,10 +114,14 @@ function App() {
     });
   }, []);
 
-  const handleResize = useCallback((width: number, height: number) => {
-    setMaxWidth(width);
-    setMaxHeight(height);
-  }, []);
+  const handleResize = useCallback(
+    (width: number, height: number) => {
+      setMaxWidth(width);
+      setMaxHeight(height);
+      setLastSavedMaxWidth(width);
+    },
+    [lastSavedMaxWidth],
+  );
 
   return (
     <div className="app-container">
@@ -88,6 +131,7 @@ function App() {
         videosToShow={videosToShow}
         windowDimensions={windowDimensions}
         videoDimensions={videoDimensions}
+        lastSavedMaxWidth={lastSavedMaxWidth}
       />
 
       <ResizableVideoGrid
@@ -107,6 +151,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   videosToShow,
   windowDimensions,
   videoDimensions,
+  lastSavedMaxWidth,
 }) => {
   const aspectRatio =
     videoDimensions.width > 0
@@ -144,6 +189,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="control-row">
           <label>Window height:</label>
           <span>{Math.round(windowDimensions.height)}px</span>
+        </div>
+        <div className="control-row">
+          <label>Last saved max width:</label>
+          <span>{Math.round(lastSavedMaxWidth)}px</span>
         </div>
       </div>
 
