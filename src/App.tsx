@@ -1,122 +1,118 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "./App.css";
 
 // Constants
 const MIN_VIDEO_WIDTH = 160;
 const MIN_VIDEO_HEIGHT = 90;
+const GAP = 8;
+const MAX_VIDEOS = 8;
+const ASPECT_RATIO = 16 / 9;
 
-// Define interfaces for component props and state
-interface ControlPanelProps {
-  numParticipants: number;
-  setNumParticipants: (value: number) => void;
-  maxVideosDisplayed: number;
-  windowDimensions: {
-    width: number;
-    height: number;
-  };
-  videoDimensions: {
-    width: number;
-    height: number;
-  };
+// Types
+interface Dimensions {
+  width: number;
+  height: number;
 }
 
-interface VideoDimensions {
+interface GridDimensions {
   videoWidth: number;
   videoHeight: number;
   windowWidth: number;
   windowHeight: number;
 }
 
-interface ResizableVideoGridProps {
+interface ControlPanelProps {
   numParticipants: number;
+  setNumParticipants: (value: number) => void;
+  videosToShow: number;
+  windowDimensions: Dimensions;
+  videoDimensions: Dimensions;
+}
+
+interface VideoGridProps {
   maxWidth: number;
   maxHeight: number;
-  gap?: number;
   videosToShow: number;
   onResize: (width: number, height: number) => void;
-  onDimensionsChange: (dimensions: VideoDimensions) => void;
+  onDimensionsChange: (dimensions: GridDimensions) => void;
 }
 
 function App() {
-  const [numParticipants, setNumParticipants] = useState<number>(8);
-  const [maxWidth, setMaxWidth] = useState<number>(1200);
-  const [maxHeight, setMaxHeight] = useState<number>(300);
-  const [videosToShow, setVideosToShow] = useState<number>(0);
-  const [windowDimensions, setWindowDimensions] = useState<{
-    width: number;
-    height: number;
-  }>({
+  const [numParticipants, setNumParticipants] = useState(8);
+  const [maxWidth, setMaxWidth] = useState(1200);
+  const [maxHeight, setMaxHeight] = useState(300);
+  const [videosToShow, setVideosToShow] = useState(0);
+  const [windowDimensions, setWindowDimensions] = useState<Dimensions>({
+    width: maxWidth,
+    height: maxHeight,
+  });
+  const [videoDimensions, setVideoDimensions] = useState<Dimensions>({
     width: 0,
     height: 0,
   });
-  const [videoDimensions, setVideoDimensions] = useState<{
-    width: number;
-    height: number;
-  }>({
-    width: 0,
-    height: 0,
-  });
-  const gap = 8;
 
   // Calculate videosToShow based on available space and participants
   useEffect(() => {
-    // Calculate how many videos can fit
-    const maxVideosToShow = Math.floor(
-      (maxWidth + gap) / (MIN_VIDEO_WIDTH + gap),
+    const maxVideosDisplayed = Math.floor(
+      (maxWidth + GAP) / (MIN_VIDEO_WIDTH + GAP),
     );
-    // Limit to the number of participants and a maximum of 8
-    const calculatedVideosToShow = Math.min(
-      numParticipants,
-      maxVideosToShow,
-      8,
-    );
+    setVideosToShow(Math.min(numParticipants, maxVideosDisplayed, MAX_VIDEOS));
 
-    setVideosToShow(calculatedVideosToShow);
-  }, [maxWidth, gap, numParticipants]);
+    setWindowDimensions({
+      width: maxWidth,
+      height: maxHeight,
+    });
+  }, [maxWidth, maxHeight, numParticipants]);
+
+  const handleDimensionsChange = useCallback((dimensions: GridDimensions) => {
+    setWindowDimensions({
+      width: dimensions.windowWidth,
+      height: dimensions.windowHeight,
+    });
+    setVideoDimensions({
+      width: dimensions.videoWidth,
+      height: dimensions.videoHeight,
+    });
+  }, []);
+
+  const handleResize = useCallback((width: number, height: number) => {
+    setMaxWidth(width);
+    setMaxHeight(height);
+  }, []);
 
   return (
     <div className="app-container">
       <ControlPanel
         numParticipants={numParticipants}
         setNumParticipants={setNumParticipants}
-        maxVideosDisplayed={videosToShow}
+        videosToShow={videosToShow}
         windowDimensions={windowDimensions}
         videoDimensions={videoDimensions}
       />
 
-      <BrowserResizableVideoGrid
+      <ResizableVideoGrid
         maxWidth={maxWidth}
         maxHeight={maxHeight}
-        numParticipants={numParticipants}
         videosToShow={videosToShow}
-        onResize={(newWidth: number, newHeight: number) => {
-          console.log("newWidth", newWidth);
-          setMaxWidth(newWidth);
-          setMaxHeight(newHeight);
-        }}
-        onDimensionsChange={(dimensions) => {
-          setWindowDimensions({
-            width: dimensions.windowWidth,
-            height: dimensions.windowHeight,
-          });
-          setVideoDimensions({
-            width: dimensions.videoWidth,
-            height: dimensions.videoHeight,
-          });
-        }}
+        onResize={handleResize}
+        onDimensionsChange={handleDimensionsChange}
       />
     </div>
   );
 }
 
-// Separate control panel component
 const ControlPanel: React.FC<ControlPanelProps> = ({
   numParticipants,
   setNumParticipants,
-  maxVideosDisplayed,
+  videosToShow,
   windowDimensions,
   videoDimensions,
 }) => {
+  const aspectRatio =
+    videoDimensions.width > 0
+      ? (videoDimensions.width / videoDimensions.height).toFixed(2)
+      : "N/A";
+
   return (
     <div className="control-panel">
       <h3>Video Grid Controls</h3>
@@ -129,16 +125,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           min="0"
           max="20"
           value={numParticipants}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            setNumParticipants(parseInt(e.target.value) || 0)
-          }
+          onChange={(e) => setNumParticipants(parseInt(e.target.value) || 0)}
         />
         <span>{numParticipants}</span>
       </div>
 
       <div className="control-row">
         <label>Maximum videos displayed:</label>
-        <span>{maxVideosDisplayed}</span>
+        <span>{videosToShow}</span>
       </div>
 
       <div className="control-section">
@@ -165,151 +159,117 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
         <div className="control-row">
           <label>Aspect ratio:</label>
-          <span>
-            {videoDimensions.width > 0
-              ? (videoDimensions.width / videoDimensions.height).toFixed(2)
-              : "N/A"}
-          </span>
+          <span>{aspectRatio}</span>
         </div>
       </div>
     </div>
   );
 };
 
-const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
-  maxWidth = 1200,
-  maxHeight = 300,
-  gap = 8,
+const ResizableVideoGrid: React.FC<VideoGridProps> = ({
+  maxWidth,
+  maxHeight,
   videosToShow,
   onResize,
   onDimensionsChange,
 }) => {
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [isResizing, setIsResizing] = useState<boolean>(false);
-  const [startPos, setStartPos] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
-  });
-  const [startSize, setStartSize] = useState<{ width: number; height: number }>(
-    { width: 0, height: 0 },
-  );
-  const [dimensions, setDimensions] = useState<VideoDimensions>({
+  const [isResizing, setIsResizing] = useState(false);
+  const [dimensions, setDimensions] = useState<GridDimensions>({
     videoWidth: 0,
     videoHeight: 0,
     windowWidth: 0,
     windowHeight: 0,
   });
 
-  // Calculate video dimensions when inputs change
+  // Calculate dimensions when inputs change - with fixed container size
   useEffect(() => {
     if (videosToShow === 0) {
-      const newDimensions = {
+      const emptyDimensions = {
         videoWidth: 0,
         videoHeight: 0,
-        windowWidth: 0,
-        windowHeight: 0,
+        windowWidth: maxWidth,
+        windowHeight: maxHeight,
       };
-      setDimensions(newDimensions);
-      onDimensionsChange(newDimensions);
+      setDimensions(emptyDimensions);
+      onDimensionsChange(emptyDimensions);
       return;
     }
 
-    // Calculate dimensions
-    const availableWidth = maxWidth - gap * (videosToShow - 1);
-    const videoWidth = Math.max(MIN_VIDEO_WIDTH, availableWidth / videosToShow);
-    const heightFromWidth = videoWidth * (9 / 16);
-    const videoHeight = Math.min(heightFromWidth, maxHeight);
-    const finalVideoWidth = videoHeight * (16 / 9);
+    // Keep container size fixed at maxWidth and maxHeight
+    const windowWidth = maxWidth;
+    const windowHeight = maxHeight;
 
-    // Calculate window dimensions
-    const windowWidth =
-      finalVideoWidth * videosToShow + gap * (videosToShow - 1);
+    // Calculate available space for videos
+    const availableWidth = windowWidth - GAP * (videosToShow - 1);
+    // Calculate ideal video width based on available space
+    const videoWidth = availableWidth / videosToShow;
+
+    // Calculate video height maintaining aspect ratio
+    const videoHeight = videoWidth / ASPECT_RATIO;
+
+    // Adjust video height to fit the window height
+    const adjustedVideoHeight = Math.min(videoHeight, windowHeight);
+    const adjustedVideoWidth = adjustedVideoHeight * ASPECT_RATIO;
 
     const newDimensions = {
-      videoWidth: finalVideoWidth,
-      videoHeight,
+      videoWidth: adjustedVideoWidth,
+      videoHeight: adjustedVideoHeight,
       windowWidth,
-      windowHeight: videoHeight,
+      windowHeight,
     };
 
     setDimensions(newDimensions);
     onDimensionsChange(newDimensions);
-  }, [maxWidth, maxHeight, gap, videosToShow, onDimensionsChange]);
+  }, [maxWidth, maxHeight, videosToShow, onDimensionsChange]);
 
   // Handle mouse down on resize handle
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
 
-    // Start resizing
-    setIsResizing(true);
+      // Initialize resizing state
+      setIsResizing(true);
+      const startPos = { x: e.clientX, y: e.clientY };
+      const startSize = { width: maxWidth, height: maxHeight };
 
-    // Store initial mouse position
-    setStartPos({
-      x: e.clientX,
-      y: e.clientY,
-    });
+      // Mouse move handler for resizing
+      const handleMouseMove = (e: MouseEvent) => {
+        const deltaX = e.clientX - startPos.x;
+        const deltaY = e.clientY - startPos.y;
 
-    // Store initial dimensions
-    setStartSize({
-      width: maxWidth,
-      height: maxHeight,
-    });
+        const newWidth = Math.max(MIN_VIDEO_WIDTH, startSize.width + deltaX);
+        const newHeight = Math.max(MIN_VIDEO_HEIGHT, startSize.height + deltaY);
 
-    // Add event listeners for mouse movement and mouse up
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+        onResize(newWidth, newHeight);
+      };
 
-    // Set cursor and prevent text selection
-    document.body.style.cursor = "nwse-resize";
-    document.body.style.userSelect = "none";
-  };
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
 
-  // Handle mouse movement while resizing
-  const handleMouseMove = (e: MouseEvent) => {
-    console.log("handleMouseMove");
-
-    // Calculate the delta movement from the start position
-    const deltaX = e.clientX - startPos.x;
-    const deltaY = e.clientY - startPos.y;
-
-    // Calculate new dimensions
-    const newWidth = Math.max(MIN_VIDEO_WIDTH, startSize.width + deltaX);
-    const newHeight = Math.max(MIN_VIDEO_HEIGHT, startSize.height + deltaY);
-
-    // Update the dimensions
-    onResize(newWidth, newHeight);
-  };
-
-  // Handle mouse up to end resizing
-  const handleMouseUp = () => {
-    // Stop resizing
-    setIsResizing(false);
-
-    console.log("handleMouseUp");
-
-    // Remove event listeners
-    document.removeEventListener("mousemove", handleMouseMove);
-    document.removeEventListener("mouseup", handleMouseUp);
-
-    // Reset cursor and text selection
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-  };
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [maxWidth, maxHeight, onResize],
+  );
 
   return (
-    <div className="video-grid-container" ref={gridRef}>
+    <div className="video-grid-container">
       <div
         className={`video-grid ${isResizing ? "resizing" : ""}`}
         style={{
-          width: dimensions.windowWidth,
-          height: dimensions.windowHeight,
+          width: maxWidth,
+          height: maxHeight,
           display: "flex",
-          gap: `${gap}px`,
+          gap: `${GAP}px`,
           transition: isResizing ? "none" : "width 0.3s ease, height 0.3s ease",
           position: "relative",
+          justifyContent: "center",
+          alignItems: "center",
         }}
       >
-        {/* Video tiles */}
         {Array.from({ length: videosToShow }).map((_, index) => (
           <div
             key={index}
@@ -323,7 +283,6 @@ const BrowserResizableVideoGrid: React.FC<ResizableVideoGridProps> = ({
           />
         ))}
 
-        {/* Single resize handle in the corner, like a browser window */}
         <div
           className="resize-handle resize-corner"
           onMouseDown={handleMouseDown}
